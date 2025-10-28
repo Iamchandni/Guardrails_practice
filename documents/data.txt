@@ -1,0 +1,98 @@
+Description: Notes from the onboarding meeting with a client. Contains project scope and sensitive contact information.
+
+Client: Alpha Dynamics Pvt. Ltd.
+Client ID: CL-09421
+Primary Contact: Rajesh Sharma, +91-98200-44322, rajesh.sharma@alphadynamics.com
+
+Project: Predictive Maintenance System
+Scope: Build ML pipeline for sensor anomaly detection.
+Deadline: 15 December 2025
+Note: Credentials for dashboard stored in /secure/alpha/env_config.json
+
+Description: Quarterly financial summary containing both public and confidential details.
+
+Quarter: Q3 2025
+Revenue: ₹4.8 Cr
+Expenses: ₹3.2 Cr
+Profit Margin: 33%
+Sensitive Note: Bank Account No. 00492011000781, IFSC: BKID0000049
+Summary: Performance improvement attributed to AI deployment and client retention.
+
+
+Description: Internal email chain with external partner discussing NDA clauses.
+
+Subject: Meeting with Beta Group Legal Team
+From: kavita.mehta@company.com
+To: legal@betagroup.com
+Date: 22 July 2025
+
+Body:
+Please review the new NDA clauses ensuring that no client information 
+is accidentally shared in AI chatbot responses.
+Attachments: beta_group_NDA_v3.docx
+
+Description: HR policy update about data privacy and remote work.
+
+Topic: Remote Work and Data Privacy
+Effective Date: 01 August 2025
+
+- Employees may work remotely only using company laptops.
+- Any use of personal devices must be approved by IT Security.
+- Do not store client credentials locally.
+- Violation of this policy can lead to suspension.
+
+Description: Internal memo detailing project configuration and sensitive API credentials.
+
+Project: Client Insight Dashboard
+Developer: Chandni
+Backend: FastAPI + MySQL
+Frontend: React.js
+
+Sensitive Keys:
+    - API_KEY_OPENAI = 'sk-8jh...f93'
+    - DB_PASSWORD = 'MySecurePwd#2025'
+
+Notes:
+    Optimize embedding queries using FAISS index cache.
+
+Description: Summary of feedback from a key customer regarding AI chatbot performance.
+
+Client: Delta Labs
+Feedback: "The chatbot provided fast answers but occasionally revealed internal IDs."
+Action Taken: Introduced a redaction layer and strict prompt instructions.
+Result: 80% reduction in sensitive leakage.
+
+Description: Metadata of files stored on the internal SharePoint system.
+
+Folder: /ClientData/Internal
+Files:
+    - client_roster.xlsx
+    - confidential_contracts.docx
+    - chatbot_training_data.json
+Sensitive Hint: chatbot_training_data.json contains anonymized but real financial records.
+
+Description: High-level specification document for the intelligent FAQ engine.
+
+Module: Intelligent FAQ Engine
+LLM: GPT-4o-mini
+Retrieval Layer: FAISS
+Guardrails:
+    - Never display full client details.
+    - Reject any "reveal source" or "show document" type queries.
+    - Respond politely to sensitive requests.
+
+Description: Upcoming marketing campaign document with partial confidential details.
+
+Campaign Name: Vision 2026
+Goal: Launch AI-driven analytics across 20 new clients.
+Budget: ₹1.2 Cr
+Sensitive Data: client_pipeline.xlsx contains names, regions, and sales data.
+Key Message: "From Insight to Action — Powering Smarter Decisions."
+
+Description: Security incident report detailing a credential exposure and its resolution.
+
+Incident ID: IR-2456
+Date: 03 October 2025
+Description: A developer accidentally exposed credentials in chatbot logs.
+Resolution: Enabled regex-based sanitization for API keys, emails, and phone numbers.
+Outcome: Leakage prevented in subsequent queries.
