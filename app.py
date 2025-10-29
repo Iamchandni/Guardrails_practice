@@ -1,17 +1,33 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_classic.chains import RetrievalQA
-from langchain_community.llms import HuggingFacePipeline
-from langchain_classic.prompts import PromptTemplate
-
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM,AutoModelForCausalLM, pipeline
+import os
 import re
+from pathlib import Path
 
-# ==========================================================
+# langchain style imports (match your current libs)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+
+# ---------------------------
+# Config
+# ---------------------------
+DATA_PATH = "documents/dummy.txt"
+FAISS_DIR = "faiss_index"            # directory where index will be saved
+EMBED_MODEL = "sentence-transformers/paraphrase-MiniLM-L3-v2"
+# CPU-friendly instruction model (no API keys). If you want slightly better reasoning, set to "flan-t5-base".
+LLM_MODEL = "google/flan-t5-base"
+
+# ---------------------------
+# Step 0: Ensure data exists
+# ---------------------------
+if not Path(DATA_PATH).exists():
+    raise FileNotFoundError(f"{DATA_PATH} not found. Place your corpus at {DATA_PATH}")
+
+# ---------------------------
 # STEP 1: Load & Sanitize Corpus
-# ==========================================================
-with open("documents/data.txt", "r", encoding="utf-8") as f:
+# ---------------------------
+with open(DATA_PATH, "r", encoding="utf-8") as f:
     corpus = f.read()
 
 def sanitize_context(text):
@@ -31,38 +47,51 @@ def sanitize_context(text):
 
 corpus_clean = sanitize_context(corpus)
 
-# ==========================================================
-# STEP 2: Split & Embed (optimized)
-# ==========================================================
+# ---------------------------
+# STEP 2: Chunking
+# ---------------------------
+
 splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 docs = splitter.create_documents([corpus_clean])
 
-# Smaller embedding model for CPU efficiency
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-MiniLM-L3-v2")
+# ---------------------------
+# STEP 3: Embeddings + FAISS (with persistence)
+# ---------------------------
+# We need an embeddings object both to build and to load the index.
+embeddings = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
 
-vectorstore = FAISS.from_documents(docs, embeddings)
+# If the FAISS index folder exists, load it. Otherwise build & save.
+if os.path.exists(FAISS_DIR):
+    print("📂 Loading persisted FAISS index from disk...")
+    vectorstore = FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
+else:
+    print("⚙️ Building FAISS index (this runs once) ...")
+    vectorstore = FAISS.from_documents(docs, embeddings)
+    print(f"💾 Saving FAISS index to '{FAISS_DIR}' ...")
+    vectorstore.save_local(FAISS_DIR)
 
-# ==========================================================
-# STEP 3: Load local lightweight LLM (TinyLlama)
-# ==========================================================
-print("⏳ Loading TinyLlama model (optimized for CPU)...")
+# Create retriever
+retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
-MODEL_NAME = "google/flan-t5-base"
-
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+# ---------------------------
+# STEP 4: Load CPU-friendly LLM (FLAN-T5 small) for text2text
+# ---------------------------
+print("⏳ Loading local FLAN-T5 model (CPU-friendly)... This may take 10-40s on first load.")
+tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL)
+model = AutoModelForSeq2SeqLM.from_pretrained(LLM_MODEL)
 
 pipe = pipeline(
     "text2text-generation",
     model=model,
     tokenizer=tokenizer,
-    max_new_tokens=128,
-    temperature=0.3,
+    max_new_tokens=256,
+    do_sample=False,      # deterministic by default for stable responses
+    temperature=0.0
 )
 
-# ==========================================================
-# STEP 4: Guardrail Prompt
-# ==========================================================
+# ---------------------------
+# STEP 5: Guardrail Prompt (kept exactly as you provided)
+# ---------------------------
 def build_prompt(context, question):
     return f"""
 
@@ -92,30 +121,38 @@ Always validate before responding:
 ### Response:
 """
 
-# ==========================================================
-# STEP 5: Query Loop
-# ==========================================================
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+# ---------------------------
+# STEP 6: CLI Query Loop (retrieve + prompt + generate)
+# ---------------------------
+print("\n✅ Offline RAG ready. Type 'exit' to quit.\n")
 
 while True:
-    query = input("\n❓ Ask a question (or type 'exit'): ").strip()
+    query = input("❓ Ask a question (or type 'exit'): ").strip()
     if query.lower() == "exit":
         break
 
-    context_docs = retriever.invoke(query)
-    context_text = "\n".join([doc.page_content for doc in context_docs])
+    # Retrieve top-k chunks
+    # Use retriever.invoke(query) if your langchain version supports it; fallback to retrieve call:
+    try:
+        context_docs = retriever.invoke(query)
+    except Exception:
+        # some versions use get_relevant_documents
+        context_docs = retriever.get_relevant_documents(query)
+
+    context_text = "\n".join([d.page_content for d in context_docs])
 
     prompt = build_prompt(context_text, query)
 
-    output = pipe(prompt, do_sample=True, temperature=0.3)[0]["generated_text"]
+    # For text2text pipeline, call without passing do_sample/temperature here
+    out = pipe(prompt)[0].get("generated_text", "").strip()
 
-    if "### Response:" in output:
-        response = output.split("### Response:")[-1].strip()
+    # parse response
+    if "### Response:" in out:
+        response = out.split("### Response:")[-1].strip()
     else:
-        response = output.strip()
-        if not response:
-          response = "I'm sorry, but I couldn’t find any non-sensitive information related to that query."
+        response = out.strip()
 
-    
+    if not response:
+        response = "I'm sorry, but I couldn’t find any non-sensitive information related to that query."
 
-    print("\n💬 Answer:", response)
+    print("\n💬 Answer:", response, "\n")
